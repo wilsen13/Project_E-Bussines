@@ -7,6 +7,7 @@ use App\Http\Controllers\ApplicationController;
 
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\WalletController;
+use App\Http\Controllers\ContractController;
 
 Route::get('/', [JobController::class, 'index'])->name('home');
 
@@ -33,10 +34,16 @@ Route::middleware('auth')->group(function () {
     Route::post('/contracts/{id}/complete', [ApplicationController::class, 'markComplete'])->name('contracts.complete');
     Route::post('/contracts/{id}/confirm', [ApplicationController::class, 'confirmComplete'])->name('contracts.confirm');
     
+    // Dedicated Contract Detail Page
+    Route::get('/contracts/{id}', [ContractController::class, 'show'])->name('contracts.show');
+    Route::post('/contracts/{id}/submit-proof', [ContractController::class, 'submitProof'])->name('contracts.submitProof');
+    Route::post('/contracts/{id}/confirm-detail', [ContractController::class, 'confirmComplete'])->name('contracts.confirmFromDetail');
+    
     Route::get('/contracts/{id}/review', [\App\Http\Controllers\ReviewController::class, 'create'])->name('reviews.create');
     Route::post('/contracts/{id}/review', [\App\Http\Controllers\ReviewController::class, 'store'])->name('reviews.store');
 
     // Profile Routes
+    Route::get('/profile/{id}', [ProfileController::class, 'show'])->name('profile.show');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');

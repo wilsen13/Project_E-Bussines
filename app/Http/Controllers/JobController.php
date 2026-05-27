@@ -19,7 +19,27 @@ class JobController extends Controller
         }
         
         $jobs = $query->latest('createdAt')->get();
-        return view('home', compact('jobs'));
+
+        // Fetch active contracts for the logged-in user
+        $activeContracts = collect();
+        if (auth()->check()) {
+            $user = auth()->user();
+            if ($user->role === 'JOB_SEEKER') {
+                $activeContracts = \App\Models\Contract::with(['job.employer', 'payment'])
+                    ->where('jobSeekerID', $user->userID)
+                    ->whereIn('status', ['ACTIVE', 'WAITING_REVIEW'])
+                    ->latest('startAt')
+                    ->get();
+            } elseif ($user->role === 'EMPLOYER') {
+                $activeContracts = \App\Models\Contract::with(['job', 'jobSeeker.user', 'payment'])
+                    ->where('employerID', $user->userID)
+                    ->whereIn('status', ['ACTIVE', 'WAITING_REVIEW'])
+                    ->latest('startAt')
+                    ->get();
+            }
+        }
+
+        return view('home', compact('jobs', 'activeContracts'));
     }
 
     public function create() {

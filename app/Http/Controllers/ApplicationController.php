@@ -140,34 +140,44 @@ class ApplicationController extends Controller
         return back();
     }
 
-    public function markComplete($contractId) {
+    public function markComplete(Request $request, $contractId) {
         $user = Auth::user();
         if ($user->role !== 'JOB_SEEKER') return back();
 
-        $contract = \App\Models\Contract::where('contractID', $contractId)->where('jobSeekerID', $user->userID)->firstOrFail();
+        $request->validate([
+            'proof_of_work' => 'required|string|max:2000',
+        ], [
+            'proof_of_work.required' => 'Bukti pekerjaan wajib diisi sebelum mengirim.',
+        ]);
+
+        $contract = \App\Models\Contract::with('job')->where('contractID', $contractId)->where('jobSeekerID', $user->userID)->firstOrFail();
         
         if ($contract->status === 'ACTIVE') {
             $contract->status = 'WAITING_REVIEW';
+            $contract->proof_of_work = $request->input('proof_of_work');
+            $contract->revision_notes = null; // Clear previous revision notes
             $contract->save();
 
             Notification::create([
                 'notificationID' => Str::uuid(),
                 'userID' => $contract->employerID,
-                'title' => 'Pekerjaan Menunggu Ulasan',
-                'message' => 'Freelancer telah menandai pekerjaan "' . $contract->job->title . '" sebagai selesai. Silakan periksa dan konfirmasi pencairan dana.',
+                'title' => 'Bukti Pekerjaan Dikirim',
+                'message' => 'Freelancer telah mengirimkan bukti pekerjaan untuk "' . $contract->job->title . '". Silakan periksa dan setujui atau minta revisi.',
             ]);
         }
 
-        return back()->with('success', 'Pekerjaan ditandai selesai! Menunggu konfirmasi Employer.');
+        return back()->with('success', 'Bukti pekerjaan berhasil dikirim! Menunggu persetujuan Employer.');
     }
 
-    public function confirmComplete($contractId) {
+    public function confirmComplete(Request $request, $contractId) {
         $user = Auth::user();
         if ($user->role !== 'EMPLOYER') return back();
 
-        $contract = \App\Models\Contract::with('payment')->where('contractID', $contractId)->where('employerID', $user->userID)->firstOrFail();
+        $contract = \App\Models\Contract::with(['payment', 'job'])->where('contractID', $contractId)->where('employerID', $user->userID)->firstOrFail();
         
-        if ($contract->status === 'WAITING_REVIEW') {
+        $action = $request->input('action');
+
+        if ($contract->status === 'WAITING_REVIEW' && $action === 'APPROVE') {
             $contract->status = 'COMPLETED';
             $contract->endAt = now();
             $contract->save();
@@ -188,10 +198,33 @@ class ApplicationController extends Controller
                 'notificationID' => Str::uuid(),
                 'userID' => $contract->jobSeekerID,
                 'title' => 'Pekerjaan Selesai & Dana Cair',
-                'message' => 'Employer telah mengkonfirmasi penyelesaian "' . $contract->job->title . '". Dana telah diteruskan ke dompet Anda.',
+                'message' => 'Employer telah menyetujui pekerjaan "' . $contract->job->title . '". Dana telah diteruskan ke dompet Anda.',
             ]);
+
+            return redirect()->route('reviews.create', $contractId)->with('success', 'Pekerjaan dikonfirmasi selesai dan dana berhasil dicairkan! Silakan berikan ulasan Anda.');
+
+        } elseif ($contract->status === 'WAITING_REVIEW' && $action === 'REVISION') {
+            $request->validate([
+                'revision_notes' => 'required|string|max:2000',
+            ], [
+                'revision_notes.required' => 'Catatan revisi wajib diisi.',
+            ]);
+
+            $contract->status = 'ACTIVE';
+            $contract->revision_notes = $request->input('revision_notes');
+            $contract->proof_of_work = null; // Clear proof so seeker must resubmit
+            $contract->save();
+
+            Notification::create([
+                'notificationID' => Str::uuid(),
+                'userID' => $contract->jobSeekerID,
+                'title' => 'Revisi Diminta',
+                'message' => 'Employer meminta revisi untuk pekerjaan "' . $contract->job->title . '". Catatan: ' . $request->input('revision_notes'),
+            ]);
+
+            return back()->with('success', 'Permintaan revisi telah dikirim ke freelancer.');
         }
 
-        return redirect()->route('reviews.create', $contractId)->with('success', 'Pekerjaan dikonfirmasi selesai dan dana berhasil dicairkan! Silakan berikan ulasan Anda.');
+        return back();
     }
 }

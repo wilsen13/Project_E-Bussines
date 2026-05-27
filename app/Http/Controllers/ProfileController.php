@@ -12,6 +12,32 @@ class ProfileController extends Controller
         return view('profile.edit', ['user' => Auth::user()]);
     }
 
+    public function show($id)
+    {
+        $user = \App\Models\User::where('userID', $id)->firstOrFail();
+        
+        // Load role-specific data
+        if ($user->role === 'JOB_SEEKER') {
+            $user->load('jobSeeker');
+        } elseif ($user->role === 'EMPLOYER') {
+            $user->load('employer');
+        }
+
+        // Get reviews about this user
+        $reviews = \App\Models\Review::with(['reviewer', 'contract.job'])
+            ->where('revieweeUserID', $id)
+            ->latest('createdAt')
+            ->get();
+
+        // Count completed contracts
+        $completedContracts = \App\Models\Contract::where('status', 'COMPLETED')
+            ->where(function($q) use ($id) {
+                $q->where('jobSeekerID', $id)->orWhere('employerID', $id);
+            })->count();
+
+        return view('profile.show', compact('user', 'reviews', 'completedContracts'));
+    }
+
     public function update(Request $request)
     {
         $request->validate([
