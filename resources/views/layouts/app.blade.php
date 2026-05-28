@@ -75,7 +75,7 @@
                                     <p class="text-xs text-gray-500 font-medium">Halo,</p>
                                     <p class="text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{{ Auth::user()->fullName }}</p>
                                 </div>
-                                <img class="h-10 w-10 rounded-full object-cover border-2 border-white shadow-sm group-hover:border-blue-100 transition-colors" src="https://ui-avatars.com/api/?name={{ urlencode(Auth::user()->fullName) }}&background=EBF4FF&color=2563EB&bold=true" alt="Profile">
+                                <img class="h-10 w-10 rounded-full object-cover border-2 border-white shadow-sm group-hover:border-blue-100 transition-colors" src="{{ Auth::user()->avatar_url }}" alt="Profile">
                                 
                                 <!-- Dropdown -->
                                 <div x-show="open" class="absolute right-0 top-14 w-56 bg-white rounded-xl shadow-lg py-2 border border-gray-100 focus:outline-none" style="display: none;">

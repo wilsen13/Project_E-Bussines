@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 
 class ProfileController extends Controller
 {
@@ -44,12 +45,24 @@ class ProfileController extends Controller
             'fullName' => 'required|string|max:255',
             'phone' => 'required|string|min:10',
             'bio' => 'nullable|string',
+            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
         ]);
 
         $user = Auth::user();
         $user->fullName = $request->fullName;
         $user->phone = $request->phone;
         $user->bio = $request->bio;
+
+        // Handle avatar upload
+        if ($request->hasFile('avatar')) {
+            // Delete old avatar if exists
+            if ($user->avatar && Storage::disk('public')->exists($user->avatar)) {
+                Storage::disk('public')->delete($user->avatar);
+            }
+
+            $path = $request->file('avatar')->store('avatars', 'public');
+            $user->avatar = $path;
+        }
         
         // Also update displayName if Employer
         if ($user->role === 'EMPLOYER' && $user->employer) {
@@ -60,6 +73,20 @@ class ProfileController extends Controller
         $user->save();
 
         return back()->with('success_profile', 'Profil berhasil diperbarui!');
+    }
+
+    public function deleteAvatar()
+    {
+        $user = Auth::user();
+
+        if ($user->avatar && Storage::disk('public')->exists($user->avatar)) {
+            Storage::disk('public')->delete($user->avatar);
+        }
+
+        $user->avatar = null;
+        $user->save();
+
+        return back()->with('success_profile', 'Foto profil berhasil dihapus!');
     }
 
     public function updatePassword(Request $request)

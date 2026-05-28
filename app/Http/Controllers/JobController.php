@@ -2,6 +2,7 @@
 namespace App\Http\Controllers;
 use App\Models\Job;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class JobController extends Controller
 {
@@ -56,31 +57,37 @@ class JobController extends Controller
             'categoryID' => 'required|exists:categories,categoryID',
             'description' => 'required|string',
             'payAmount' => 'required|numeric|min:0',
-            'image_url' => 'nullable|url',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
             'is_remote' => 'nullable|boolean',
             'addressLine' => 'required_unless:is_remote,1',
             'city' => 'required_unless:is_remote,1',
             'province' => 'required_unless:is_remote,1',
         ]);
 
-        $employerId = auth()->user()->userID; // EmployerID is same as UserID
+        $employerId = auth()->user()->userID;
         $locationId = null;
 
         $isRemote = $request->has('is_remote') && $request->is_remote;
 
+        // Create Location FIRST, then use its persisted primary key
         if (!$isRemote) {
-            $locationId = \Illuminate\Support\Str::uuid();
-            \App\Models\Location::create([
-                'locationID' => $locationId,
+            $location = \App\Models\Location::create([
                 'addressLine' => $request->addressLine,
                 'city' => $request->city,
                 'province' => $request->province,
                 'postalCode' => $request->postalCode ?? '00000'
             ]);
+            $locationId = $location->locationID; // Get the auto-generated UUID
         }
 
+        // Handle image upload
+        $imagePath = null;
+        if ($request->hasFile('image')) {
+            $imagePath = $request->file('image')->store('jobs', 'public');
+        }
+
+        // Create Job — HasUuids auto-generates jobID
         \App\Models\Job::create([
-            'jobID' => \Illuminate\Support\Str::uuid(),
             'employerID' => $employerId,
             'categoryID' => $request->categoryID,
             'locationID' => $locationId,
@@ -89,7 +96,7 @@ class JobController extends Controller
             'payAmount' => $request->payAmount,
             'jobStatus' => 'OPEN',
             'is_remote' => $isRemote,
-            'image_url' => $request->image_url,
+            'image_url' => $imagePath,
         ]);
 
         return redirect()->route('home')->with('success', 'Lowongan kerja berhasil dibuat!');
@@ -121,7 +128,7 @@ class JobController extends Controller
             'categoryID' => 'required|exists:categories,categoryID',
             'description' => 'required|string',
             'payAmount' => 'required|numeric|min:0',
-            'image_url' => 'nullable|url',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
             'is_remote' => 'nullable|boolean',
             'addressLine' => 'required_unless:is_remote,1',
             'city' => 'required_unless:is_remote,1',
@@ -131,7 +138,7 @@ class JobController extends Controller
         $isRemote = $request->has('is_remote') && $request->is_remote;
 
         if (!$isRemote) {
-            if ($job->locationID) {
+            if ($job->locationID && $job->location) {
                 // Update existing location
                 $job->location->update([
                     'addressLine' => $request->addressLine,
@@ -140,17 +147,25 @@ class JobController extends Controller
                     'postalCode' => $request->postalCode ?? '00000'
                 ]);
             } else {
-                // Create new location
-                $locationId = \Illuminate\Support\Str::uuid();
-                \App\Models\Location::create([
-                    'locationID' => $locationId,
+                // Create new location — HasUuids auto-generates locationID
+                $location = \App\Models\Location::create([
                     'addressLine' => $request->addressLine,
                     'city' => $request->city,
                     'province' => $request->province,
                     'postalCode' => $request->postalCode ?? '00000'
                 ]);
-                $job->locationID = $locationId;
+                $job->locationID = $location->locationID;
             }
+        }
+
+        // Handle image upload
+        $imagePath = $job->image_url;
+        if ($request->hasFile('image')) {
+            // Delete old image if it was a local file
+            if ($job->image_url && !str_starts_with($job->image_url, 'http') && Storage::disk('public')->exists($job->image_url)) {
+                Storage::disk('public')->delete($job->image_url);
+            }
+            $imagePath = $request->file('image')->store('jobs', 'public');
         }
 
         $job->update([
@@ -159,7 +174,7 @@ class JobController extends Controller
             'description' => $request->description,
             'payAmount' => $request->payAmount,
             'is_remote' => $isRemote,
-            'image_url' => $request->image_url,
+            'image_url' => $imagePath,
         ]);
 
         return redirect()->route('home')->with('success', 'Lowongan kerja berhasil diperbarui!');
@@ -169,6 +184,11 @@ class JobController extends Controller
         $job = Job::findOrFail($id);
         if (auth()->user()->role !== 'EMPLOYER' || $job->employerID !== auth()->user()->userID) return redirect()->route('home');
         
+        // Delete associated image file
+        if ($job->image_url && !str_starts_with($job->image_url, 'http') && Storage::disk('public')->exists($job->image_url)) {
+            Storage::disk('public')->delete($job->image_url);
+        }
+
         \App\Models\Application::where('jobID', $id)->delete();
         $job->delete();
         return redirect()->route('home')->with('success', 'Lowongan kerja berhasil dihapus!');

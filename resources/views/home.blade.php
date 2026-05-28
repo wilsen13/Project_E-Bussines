@@ -100,13 +100,21 @@
             <div class="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 flex flex-col group cursor-pointer">
                 @if($job->image_url)
                 <div class="h-40 w-full overflow-hidden bg-gray-100">
-                    <img src="{{ $job->image_url }}" alt="Thumbnail" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                    @if(str_starts_with($job->image_url, 'http'))
+                        <img src="{{ $job->image_url }}" alt="Thumbnail" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                    @else
+                        <img src="{{ asset('storage/' . $job->image_url) }}" alt="Thumbnail" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                    @endif
                 </div>
                 @endif
                 <div class="p-5 flex flex-col flex-grow">
                     <h3 class="font-bold text-lg text-gray-900 leading-tight group-hover:text-blue-600 transition-colors line-clamp-2 mb-2">{{ $job->title }}</h3>
                     <div class="flex items-center gap-2 mb-4">
-                        <div class="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">{{ substr($job->employer->displayName ?? 'User', 0, 1) }}</div>
+                        @if($job->employer && $job->employer->user)
+                            <img class="w-6 h-6 rounded-full object-cover" src="{{ $job->employer->user->avatar_url }}" alt="">
+                        @else
+                            <div class="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">{{ substr($job->employer->displayName ?? 'User', 0, 1) }}</div>
+                        @endif
                         <p class="text-sm text-gray-500 font-medium line-clamp-1">Oleh <span class="text-gray-700">{{ $job->employer->displayName ?? 'Anonim' }}</span></p>
                     </div>
                     <div class="mt-auto pt-4 border-t border-gray-50">

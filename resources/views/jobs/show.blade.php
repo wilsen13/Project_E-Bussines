@@ -22,7 +22,11 @@
         <!-- Header Section -->
         <div class="relative w-full h-64 sm:h-80 bg-gray-900 overflow-hidden">
             @if($job->image_url)
-                <img src="{{ $job->image_url }}" alt="Thumbnail" class="w-full h-full object-cover opacity-60">
+                @if(str_starts_with($job->image_url, 'http'))
+                    <img src="{{ $job->image_url }}" alt="Thumbnail" class="w-full h-full object-cover opacity-60">
+                @else
+                    <img src="{{ asset('storage/' . $job->image_url) }}" alt="Thumbnail" class="w-full h-full object-cover opacity-60">
+                @endif
             @else
                 <div class="absolute inset-0 bg-gradient-to-r from-blue-600 to-blue-800"></div>
                 <div class="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-white/10 blur-3xl"></div>
